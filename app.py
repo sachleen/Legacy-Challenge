@@ -33,8 +33,7 @@ def main():
                 
                 if completed:
                     tallyTasks(name)
-                
-                internInfo(row[0], _TASK_NAMES[name][0], completed, row[7])
+                    internInfo(row[0], _TASK_NAMES[name][0], row[7])
         
         campusTally(row)
     infile.close()
@@ -109,7 +108,7 @@ def main():
 
 
 _internInfo = {}
-def internInfo(name, bit, taskCompleted, campus):
+def internInfo(name, bit, campus):
     '''
     Updates dictionary containing the following items:
         Key: Name
@@ -122,15 +121,14 @@ def internInfo(name, bit, taskCompleted, campus):
     
     param name: name of intern
     param bit: the bit that represents the task. See _TASK_NAMES for the bit values
-    param taskCompleted: Boolean representing the status of the task for this person
     param campus: Name of campus this person works at
     '''
     if _internInfo.get(name) is None:
         _internInfo[name] = [0, 0, campus]
     
-    if taskCompleted is True:
-        _internInfo[name][0] = _internInfo[name][0] | 1 << bit
-        _internInfo[name][1] = "{0:b}".format(_internInfo[name][0]).count("1")
+
+    _internInfo[name][0] = _internInfo[name][0] | 1 << bit
+    _internInfo[name][1] = "{0:b}".format(_internInfo[name][0]).count("1")
 
 
 _tasksCompletedByTask = {}
@@ -140,8 +138,7 @@ def tallyTasks(taskName):
     
     param taskName: Name of task whose count should be incremented
     '''
-
-    #taskName = next((name for name, attributes in _TASK_NAMES.items() if attributes[0] == bit), None)
+    
     _tasksCompletedByTask[taskName] = _tasksCompletedByTask.get(taskName, 0) + 1
 
 _campuses = {}
