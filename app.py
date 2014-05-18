@@ -15,23 +15,29 @@ def config():
     }
 
 def main():
-    with open('survey.csv', 'rb') as infile:
-        reader = csv.reader(infile)
-        next(reader, None) # skip header
-        
-        for row in reader:
-            taskName = row[1]
+    try:
+        infile = open('survey.csv', 'rb')
+    except IOError:
+        print "survey.csv not found."
+        exitFunc()
+    
+    reader = csv.reader(infile)
+    next(reader, None) # skip header
+    
+    for row in reader:
+        taskName = row[1]
 
-            for name in _TASK_NAMES:
-                if name in taskName:
-                    completed = _TASK_NAMES[name][1](row)
-                    
-                    if completed:
-                        tallyTasks(name)
-                    
-                    internInfo(row[0], _TASK_NAMES[name][0], completed, row[7])
-            
-            campusTally(row)
+        for name in _TASK_NAMES:
+            if name in taskName:
+                completed = _TASK_NAMES[name][1](row)
+                
+                if completed:
+                    tallyTasks(name)
+                
+                internInfo(row[0], _TASK_NAMES[name][0], completed, row[7])
+        
+        campusTally(row)
+    infile.close()
     
     print "\n===================================="
     
@@ -98,6 +104,8 @@ def main():
     # Volunteer stats
     print "Total expected hours volunteered: {0} ".format(_hoursVolunteered)
     print "Total alumni luncheon attendance: {0} ".format(_peopleLunchedWith)
+    
+    exitFunc()
 
 
 _internInfo = {}
@@ -217,6 +225,9 @@ def oneToReturn(row):
     print "Intern: ", row[0], "\tTask: External Profile"
     return row[4] == 'Yes'
 
+def exitFunc():
+    print "\nPress enter to close"
+    raw_input()
 
 config()
 main()

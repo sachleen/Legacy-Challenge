@@ -176,3 +176,4 @@ UpgradeLog*.htm
 FakesAssemblies/
 output.csv
 output.txt
+dist/
