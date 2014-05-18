@@ -7,7 +7,8 @@ Tallies up results exported from the SharePoint survey.
 
 All
 - Number of submissions for each survey
-- Number of interns that completed all seven tasks
+- All interns and number of tasks completed
+- Interns that completed all seven tasks
 - Number of responses from each campus
 
 Power of One (Volunteering)
@@ -17,7 +18,6 @@ Power of One (Volunteering)
 One to Many - Alumni Luncheon
 - Number of submissions for this survey
 - Sum the number of people in attendance
-- Average number of people in attendance
 
 One Data Point - Survey
 - Number of submissions for this survey
