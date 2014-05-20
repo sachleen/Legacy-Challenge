@@ -177,3 +177,4 @@ FakesAssemblies/
 output.csv
 output.txt
 dist/
+legacy.db
