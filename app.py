@@ -38,6 +38,7 @@ def main():
     initDatabase()
     print "Importing survey into database"
     csv2sql()
+    print "Done!"
 
 def initDatabase():
     '''
@@ -77,22 +78,30 @@ def csv2sql():
     
     con = sql.connect(_DB_FILE)
     cur = con.cursor()
+    
     for row in reader:
-        print '\n','='*10 ,row[_CSV_COLUMNS['name']],'='*10
+        # Progress indicator
+        pos = reader.line_num % 20
+        
+        print '\r[',
+        print ' '*(pos),
+        print '=',
+        print ' '*(19-pos),
+        print ']',
         
         # Try an insert
         cur.execute("INSERT OR IGNORE INTO results VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", (
             row[_CSV_COLUMNS['name']],
             row[_CSV_COLUMNS['campus']],
-            row[_CSV_COLUMNS['po_min_hours']],
+            'T' if row[_CSV_COLUMNS['po_min_hours']] == 'Yes' else 'F',
             row[_CSV_COLUMNS['po_total_hours']],
             row[_CSV_COLUMNS['om_number_attended']],
             row[_CSV_COLUMNS['om_university']],
-            row[_CSV_COLUMNS['od_completed']],
-            row[_CSV_COLUMNS['ov_completed']],
-            row[_CSV_COLUMNS['oi_submitted_idea']],
-            row[_CSV_COLUMNS['oi_meets_net_worth']],
-            row[_CSV_COLUMNS['or_completed']]
+            'T' if row[_CSV_COLUMNS['od_completed']] == 'TRUE' else 'F',
+            'T' if row[_CSV_COLUMNS['ov_completed']] == 'Yes' else 'F',
+            'T' if row[_CSV_COLUMNS['oi_submitted_idea']] == 'TRUE' else 'F',
+            'T' if row[_CSV_COLUMNS['oi_meets_net_worth']] == 'TRUE' else 'F',
+            'T' if row[_CSV_COLUMNS['or_completed']] == 'Yes' else 'F'
         ))
         rowsAffected = cur.rowcount
         con.commit()
@@ -102,55 +111,50 @@ def csv2sql():
             
             if _TASK_FIELDS[0][0] in row[_CSV_COLUMNS['task_name']]:
                 # Power of One
-                print _TASK_FIELDS[0][0]
                 cur.execute('UPDATE results SET po_min_hours = ?, po_total_hours = ? WHERE name = ?', (
-                    row[_CSV_COLUMNS['po_min_hours']],
+                    '1' if row[_CSV_COLUMNS['po_min_hours']] == 'Yes' else '0',
                     row[_CSV_COLUMNS['po_total_hours']],
                     row[_CSV_COLUMNS['name']]
                 ))
+                
             elif _TASK_FIELDS[1][0] in row[_CSV_COLUMNS['task_name']]:
                 # One to Many
-                print _TASK_FIELDS[1][0]
                 cur.execute('UPDATE results SET om_number_attended = ?, om_university = ? WHERE name = ?', (
                     row[_CSV_COLUMNS['om_number_attended']],
                     row[_CSV_COLUMNS['om_university']],
                     row[_CSV_COLUMNS['name']]
                 ))
+                
             elif _TASK_FIELDS[2][0] in row[_CSV_COLUMNS['task_name']]:
                 # One Data Point
-                print _TASK_FIELDS[2][0]
                 cur.execute('UPDATE results SET od_completed = ? WHERE name = ?', (
-                    row[_CSV_COLUMNS['od_completed']],
+                    'T' if row[_CSV_COLUMNS['od_completed']] == 'TRUE' else 'F',
                     row[_CSV_COLUMNS['name']]
                 ))
+                
             elif _TASK_FIELDS[3][0] in row[_CSV_COLUMNS['task_name']]:
                 # One Voice
-                print _TASK_FIELDS[3][0]
                 cur.execute('UPDATE results SET ov_completed = ? WHERE name = ?', (
-                    row[_CSV_COLUMNS['ov_completed']],
+                    'T' if row[_CSV_COLUMNS['ov_completed']] == 'Yes' else 'F',
                     row[_CSV_COLUMNS['name']]
                 ))
+                
             elif _TASK_FIELDS[4][0] in row[_CSV_COLUMNS['task_name']]:
                 # One Idea
-                print _TASK_FIELDS[4][0]
                 cur.execute('UPDATE results SET oi_submitted_idea = ?, oi_meets_net_worth = ? WHERE name = ?', (
-                    row[_CSV_COLUMNS['oi_submitted_idea']],
-                    row[_CSV_COLUMNS['oi_meets_net_worth']],
+                    'T' if row[_CSV_COLUMNS['oi_submitted_idea']] == 'TRUE' else 'F',
+                    'T' if row[_CSV_COLUMNS['oi_meets_net_worth']] == 'TRUE' else 'F',
                     row[_CSV_COLUMNS['name']]
                 ))
+                
             elif _TASK_FIELDS[5][0] in row[_CSV_COLUMNS['task_name']]:
                 # One to Return
-                print _TASK_FIELDS[5][0]
                 cur.execute('UPDATE results SET or_completed = ? WHERE name = ?', (
-                    row[_CSV_COLUMNS['or_completed']],
+                    'T' if row[_CSV_COLUMNS['or_completed']] == 'Yes' else 'F',
                     row[_CSV_COLUMNS['name']]
                 ))
                 
             con.commit()
-            print "Updated existing record"
-        else:
-            print row[_CSV_COLUMNS['task_name']]
-            print "Insert successful"
         
         
     
