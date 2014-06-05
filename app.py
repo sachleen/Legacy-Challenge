@@ -179,17 +179,44 @@ def main():
     con.close()
     
     # Output Result
-    outfile = open('output.csv', 'wb')
+    outfile = open('allInterns.csv', 'wb')
     writer = csv.writer(outfile, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
     writer.writerow(("Name", "Campus", "# Completed"))
     
     for row in results:
-
         writer.writerow(row)
     
     print ""
-    print "Full list of all interns and number of tasks completed is in output.csv"
+    print "Full list of all interns and number of tasks completed is in allInterns.csv"
     
+    '''
+    Updates since last time script was run
+    ============================================================
+    '''
+    # Query Database
+    con = sql.connect(_DB_FILE)
+    cur = con.cursor()
+    cur.execute("""
+    SELECT name, campus, updateCnt
+    FROM results
+    WHERE updateCnt > 0
+    ORDER BY updateCnt DESC, name ASC
+    """)
+    results = cur.fetchall()
+    con.close()
+    
+    # Output Result
+    outfile = open('newEntries.csv', 'wb')
+    writer = csv.writer(outfile, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+    writer.writerow(("Name", "Campus", "# Completed"))
+    
+    for row in results:
+        writer.writerow(row)
+    
+    print ""
+    print "Added new submissions from last time script was run to newEntries.csv"
+    
+
 
 def initDatabase():
     '''
@@ -197,8 +224,7 @@ def initDatabase():
     '''
     con = sql.connect(_DB_FILE)
     cur = con.cursor()
-    cur.execute("DROP TABLE IF EXISTS results;")
-    cur.execute("""CREATE TABLE `results` (
+    cur.execute("""CREATE TABLE IF NOT EXISTS `results` (
                     `name` TEXT NOT NULL UNIQUE,
                     `campus` TEXT,
                     `impact` TEXT,
@@ -209,8 +235,10 @@ def initDatabase():
                     `improve` TEXT,
                     `internview` TEXT,
                     `innovate` TEXT,
-                    `return` TEXT
+                    `return` TEXT,
+                    `updateCnt` INT
                 );""")
+    cur.execute("UPDATE results SET updateCnt = 0;")
     con.commit()
     con.close()
 
@@ -241,69 +269,78 @@ def csv2sql():
         print ']',
         
         # Try an insert
-        cur.execute("INSERT OR IGNORE INTO results VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", (
-            row[_CSV_COLUMNS['name']],
-            row[_CSV_COLUMNS['campus']],
-            'Y' if isSet(row[_CSV_COLUMNS['impact_min_hours']]) and isSet(row[_CSV_COLUMNS['impact_share_pic']]) else 'N',
-            row[_CSV_COLUMNS['impact_total_hours']],
-            'Y' if isSet(row[_CSV_COLUMNS['connect_share_pic']]) else 'N',
-            row[_CSV_COLUMNS['connect_number_attended']],
-            row[_CSV_COLUMNS['connect_university']],
-            'Y' if isSet(row[_CSV_COLUMNS['improve_did_survey']]) else 'N',
-            'Y' if isSet(row[_CSV_COLUMNS['internview_did_video']]) else 'N',
-            'Y' if isSet(row[_CSV_COLUMNS['innovate_submit_idea']]) and isSet(row[_CSV_COLUMNS['innovate_meets_net_worth']]) else 'N',
-            'Y' if isSet(row[_CSV_COLUMNS['return_did_profile']]) and isSet(row[_CSV_COLUMNS['return_did_resume']]) else 'N'
-        ))
-        rowsAffected = cur.rowcount
-        con.commit()
+        if (
+                (isSet(row[_CSV_COLUMNS['impact_min_hours']]) and isSet(row[_CSV_COLUMNS['impact_share_pic']]))
+                or isSet(row[_CSV_COLUMNS['connect_share_pic']])
+                or isSet(row[_CSV_COLUMNS['improve_did_survey']])
+                or isSet(row[_CSV_COLUMNS['internview_did_video']])
+                or (isSet(row[_CSV_COLUMNS['innovate_submit_idea']]) and isSet(row[_CSV_COLUMNS['innovate_meets_net_worth']]))
+                or (isSet(row[_CSV_COLUMNS['return_did_profile']]) and isSet(row[_CSV_COLUMNS['return_did_resume']]))
+            ):
+            cur.execute("INSERT OR IGNORE INTO results VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", (
+                row[_CSV_COLUMNS['name']],
+                row[_CSV_COLUMNS['campus']],
+                'Y' if isSet(row[_CSV_COLUMNS['impact_min_hours']]) and isSet(row[_CSV_COLUMNS['impact_share_pic']]) else 'N',
+                row[_CSV_COLUMNS['impact_total_hours']],
+                'Y' if isSet(row[_CSV_COLUMNS['connect_share_pic']]) else 'N',
+                row[_CSV_COLUMNS['connect_number_attended']],
+                row[_CSV_COLUMNS['connect_university']],
+                'Y' if isSet(row[_CSV_COLUMNS['improve_did_survey']]) else 'N',
+                'Y' if isSet(row[_CSV_COLUMNS['internview_did_video']]) else 'N',
+                'Y' if isSet(row[_CSV_COLUMNS['innovate_submit_idea']]) and isSet(row[_CSV_COLUMNS['innovate_meets_net_worth']]) else 'N',
+                'Y' if isSet(row[_CSV_COLUMNS['return_did_profile']]) and isSet(row[_CSV_COLUMNS['return_did_resume']]) else 'N',
+                1
+            ))
+            rowsAffected = cur.rowcount
+            con.commit()
         
         if rowsAffected == 0:
             # Insert failed because record already exists, update it
             
             if _TASK_NAMES[0] in row[_CSV_COLUMNS['task_name']]:
                 # Impact
-                cur.execute('UPDATE results SET impact = ?, impact_total_hours = ? WHERE name = ?', (
-                    'Y' if isSet(row[_CSV_COLUMNS['impact_min_hours']]) and isSet(row[_CSV_COLUMNS['impact_share_pic']]) else 'N',
-                    row[_CSV_COLUMNS['impact_total_hours']],
-                    row[_CSV_COLUMNS['name']]
-                ))
+                if isSet(row[_CSV_COLUMNS['impact_min_hours']]) and isSet(row[_CSV_COLUMNS['impact_share_pic']]):
+                    cur.execute('UPDATE results SET impact = \'Y\', impact_total_hours = ?, updateCnt = updateCnt + 1 WHERE name = ? and impact = \'N\'', (
+                        row[_CSV_COLUMNS['impact_total_hours']],
+                        row[_CSV_COLUMNS['name']]
+                    ))
                 
             elif _TASK_NAMES[1] in row[_CSV_COLUMNS['task_name']]:
                 # Connect
-                cur.execute('UPDATE results SET connect = ?, connect_number_attended = ?, connect_university = ? WHERE name = ?', (
-                    'Y' if isSet(row[_CSV_COLUMNS['connect_share_pic']]) else 'N',
-                    row[_CSV_COLUMNS['connect_number_attended']],
-                    row[_CSV_COLUMNS['connect_university']],
-                    row[_CSV_COLUMNS['name']]
-                ))
+                if isSet(row[_CSV_COLUMNS['connect_share_pic']]):
+                    cur.execute('UPDATE results SET connect = \'Y\', connect_number_attended = ?, connect_university = ?, updateCnt = updateCnt + 1 WHERE name = ? and connect = \'N\'', (
+                        row[_CSV_COLUMNS['connect_number_attended']],
+                        row[_CSV_COLUMNS['connect_university']],
+                        row[_CSV_COLUMNS['name']]
+                    ))
                 
             elif _TASK_NAMES[2] in row[_CSV_COLUMNS['task_name']]:
                 # Improve
-                cur.execute('UPDATE results SET improve = ? WHERE name = ?', (
-                    'Y' if isSet(row[_CSV_COLUMNS['improve_did_survey']]) else 'N',
-                    row[_CSV_COLUMNS['name']]
-                ))
+                if isSet(row[_CSV_COLUMNS['improve_did_survey']]):
+                    cur.execute('UPDATE results SET improve = \'Y\', updateCnt = updateCnt + 1 WHERE name = ? and improve = \'N\'', (
+                        row[_CSV_COLUMNS['name']],
+                    ))
                 
             elif _TASK_NAMES[3] in row[_CSV_COLUMNS['task_name']]:
                 # InternView
-                cur.execute('UPDATE results SET internview = ? WHERE name = ?', (
-                    'Y' if isSet(row[_CSV_COLUMNS['internview_did_video']]) else 'N',
-                    row[_CSV_COLUMNS['name']]
-                ))
+                if isSet(row[_CSV_COLUMNS['internview_did_video']]):
+                    cur.execute('UPDATE results SET internview = \'Y\', updateCnt = updateCnt + 1 WHERE name = ? and internview = \'N\'', (
+                        row[_CSV_COLUMNS['name']],
+                    ))
                 
             elif _TASK_NAMES[4] in row[_CSV_COLUMNS['task_name']]:
                 # Innovate
-                cur.execute('UPDATE results SET innovate = ?, WHERE name = ?', (
-                    'Y' if isSet(row[_CSV_COLUMNS['innovate_submit_idea']]) and isSet(row[_CSV_COLUMNS['innovate_meets_net_worth']]) else 'N',
-                    row[_CSV_COLUMNS['name']]
-                ))
+                if isSet(row[_CSV_COLUMNS['innovate_submit_idea']]) and isSet(row[_CSV_COLUMNS['innovate_meets_net_worth']]):
+                    cur.execute('UPDATE results SET innovate = \'Y\', updateCnt = updateCnt + 1 WHERE name = ? and innovate = \'N\'', (
+                        row[_CSV_COLUMNS['name']],
+                    ))
                 
             elif _TASK_NAMES[5] in row[_CSV_COLUMNS['task_name']]:
                 # Return
-                cur.execute('UPDATE results SET return = ? WHERE name = ?', (
-                    'Y' if isSet(row[_CSV_COLUMNS['return_did_profile']]) and isSet(row[_CSV_COLUMNS['return_did_resume']]) else 'N',
-                    row[_CSV_COLUMNS['name']]
-                ))
+                if isSet(row[_CSV_COLUMNS['return_did_profile']]) and isSet(row[_CSV_COLUMNS['return_did_resume']]):
+                    cur.execute('UPDATE results SET return = \'Y\', updateCnt = updateCnt + 1 WHERE name = ? and return = \'N\'', (
+                        row[_CSV_COLUMNS['name']],
+                    ))
                 
             con.commit()
 
