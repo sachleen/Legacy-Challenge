@@ -174,8 +174,6 @@ UpgradeLog*.htm
 
 # Microsoft Fakes
 FakesAssemblies/
-output.csv
-output.txt
 dist/
 legacy.db
 *.csv
