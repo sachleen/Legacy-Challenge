@@ -1,12 +1,14 @@
 import sqlite3 as sql
 import csv
 from prettytable import PrettyTable
+import datetime
 
 
 '''
 Configuration
 '''
 _CSV_FILE = 'survey.csv'
+
 # Readable names for CSV column numbers
 _CSV_COLUMNS = {
     'name': 0,
@@ -179,7 +181,8 @@ def main():
     con.close()
     
     # Output Result
-    outfile = open('allInterns.csv', 'wb')
+    fileName = 'allInterns_%s.csv' % (datetime.date.today())
+    outfile = open(fileName, 'wb')
     writer = csv.writer(outfile, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
     writer.writerow(("Name", "Campus", "# Completed"))
     
@@ -206,7 +209,8 @@ def main():
     con.close()
     
     # Output Result
-    outfile = open('newEntries.csv', 'wb')
+    fileName = 'changesOnly_%s.csv' % (datetime.date.today())
+    outfile = open(fileName, 'wb')
     writer = csv.writer(outfile, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
     writer.writerow(("Name", "Campus", "# Completed"))
     
@@ -220,7 +224,7 @@ def main():
 
 def initDatabase():
     '''
-    Setup the SQLite database. Clears existing database if it already exists
+    Setup the SQLite database. Creates table for results if it doesn't already exist and clears updateCnt.
     '''
     con = sql.connect(_DB_FILE)
     cur = con.cursor()
