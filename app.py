@@ -2,12 +2,11 @@ import sqlite3 as sql
 import csv
 from prettytable import PrettyTable
 import datetime
-
+import sys
 
 '''
 Configuration
 '''
-_CSV_FILE = 'survey.csv'
 
 # Readable names for CSV column numbers
 _CSV_COLUMNS = {
@@ -53,6 +52,13 @@ _TASK_NAMES = (
 _DB_FILE = 'legacy.db'
 
 def main():
+    if len(sys.argv) < 2:
+        print "Must specify input file name"
+        exitFunc()
+    
+    global _CSV_FILE
+    _CSV_FILE = sys.argv[1]#'survey.csv'
+
     print "Setting up database"
     initDatabase()
     print "Importing survey into database"
@@ -251,9 +257,9 @@ def csv2sql():
     Imports _CSV_FILE data into _DB_FILE with column relationship represented in _CSV_COLUMNS
     '''
     try:
-        infile = open('survey.csv', 'rb')
+        infile = open(_CSV_FILE, 'rb')
     except IOError:
-        print "survey.csv not found."
+        print "Input file not found."
         exitFunc()
     
     reader = csv.reader(infile)
@@ -356,5 +362,6 @@ def isSet(val):
 def exitFunc():
     print "\nPress enter to close"
     raw_input()
+    exit()
 
 main()
