@@ -1,20 +1,255 @@
+import sqlite3 as sql
 import csv
 from prettytable import PrettyTable
+import datetime
 
-_TASK_NAMES = {}
-def config():
-    global _TASK_NAMES
+
+'''
+Configuration
+'''
+_CSV_FILE = 'survey.csv'
+
+# Readable names for CSV column numbers
+_CSV_COLUMNS = {
+    'name': 0,
+    'task_name': 1,
+    'campus': 7,
     
-    _TASK_NAMES = {
-        'Power of One': [0, powerOfOne],
-        'One to Many': [1, oneToMany],
-        'One Data Point': [2, oneDataPoint],
-        'One Voice': [3, oneVoice],
-        'One Idea': [4, oneIdea],
-        'One to Return': [5, oneToReturn]
-    }
+    # Impact
+    'impact_min_hours': 2,      # required
+    'impact_share_pic': 18,     # required
+    'impact_total_hours': 3,    # stats only
+    
+    #Connect
+    'connect_share_pic': 17,        # required
+    'connect_number_attended': 13,  # stats only
+    'connect_university': 8,        # stats only
+    
+    #Improve
+    'improve_did_survey': 6,    # required
+    
+    #InternView
+    'internview_did_video': 11, # required
+    
+    #Innovate
+    'innovate_submit_idea': 14,     # required
+    'innovate_meets_net_worth': 10, # required
+    
+    #Return
+    'return_did_profile': 4,    # required
+    'return_did_resume': 16     # required
+}
+
+# Match the task with the column names
+_TASK_NAMES = (
+    'Impact',
+    'Connect',
+    'Improve',
+    'InternView',
+    'Innovate',
+    'Return'
+)
+
+_DB_FILE = 'legacy.db'
 
 def main():
+    print "Setting up database"
+    initDatabase()
+    print "Importing survey into database"
+    csv2sql()
+    print "Done!"
+
+    
+    '''
+    Run Reports
+    '''
+
+    
+    '''
+    Number of successful completions for each task
+    ============================================================
+    '''
+    # Query Database
+    con = sql.connect(_DB_FILE)
+    cur = con.cursor()
+    cur.execute("""
+    SELECT 
+        sum(case when impact = 'Y' then 1 else 0 end) impact_cnt,
+        sum(case when connect = 'Y' then 1 else 0 end) connect_cnt,
+        sum(case when improve = 'Y' then 1 else 0 end) improve_cnt,
+        sum(case when internview = 'Y' then 1 else 0 end) internview_cnt,
+        sum(case when innovate = 'Y' then 1 else 0 end) innovate_cnt,
+        sum(case when return = 'Y' then 1 else 0 end) return_cnt
+    FROM results;
+    """)
+    counts = cur.fetchone()
+    con.close()
+    
+    # Output Result
+    x = PrettyTable(["Task", "# Completed"])
+    x.sortby = "# Completed"
+    x.reversesort = True
+    x.padding_width = 1
+    x.align = "l"
+    
+    for idx, task in enumerate(_TASK_NAMES):
+        x.add_row([task, counts[idx]])
+    
+    print ""
+    print "Most popular tasks"
+    print x
+
+    
+    '''
+    Most active campuses
+    ============================================================
+    '''
+    # Query Database
+    con = sql.connect(_DB_FILE)
+    cur = con.cursor()
+    cur.execute("SELECT campus, count(*) as interns FROM results GROUP BY campus;")
+    results = cur.fetchall()
+    con.close()
+    
+    # Output Result
+    x = PrettyTable(("Campus", "# Interns"))
+    x.sortby = "# Interns"
+    x.reversesort = True
+    x.padding_width = 1
+    x.align = "l"
+
+    for row in results:
+        x.add_row(row)
+    
+    print ""
+    print "Most active campuses"
+    print x
+    
+    
+    print ""
+    print "Other stats"
+    '''
+    Total volunteer hours
+    ============================================================
+    '''
+    # Query Database
+    con = sql.connect(_DB_FILE)
+    cur = con.cursor()
+    cur.execute("SELECT count(*) as numResponses, sum(impact_total_hours) as total FROM results WHERE impact = 'Y';")
+    results = cur.fetchone()
+    con.close()
+    
+    # Output Result
+    print "{0} interns have volunteered a total of {1} hours".format(*results)
+    
+    '''
+    Total people at lunch
+    ============================================================
+    '''
+    # Query Database
+    con = sql.connect(_DB_FILE)
+    cur = con.cursor()
+    cur.execute("SELECT count(*) as numResponses, sum(connect_number_attended) as total FROM results WHERE connect = 'Y';")
+    results = cur.fetchone()
+    con.close()
+    
+    # Output Result
+    print "{0} interns had lunch with {1} people form their universities".format(*results)
+    
+        
+    '''
+    Interns and number of tasks they've completed
+    ============================================================
+    '''
+    # Query Database
+    con = sql.connect(_DB_FILE)
+    cur = con.cursor()
+    cur.execute("""
+    SELECT name, campus,
+    (
+        (case when impact == 'Y' then 1 else 0 end) +
+        (case when connect == 'Y' then 1 else 0 end) +
+        (case when improve = 'Y' then 1 else 0 end) +
+        (case when internview = 'Y' then 1 else 0 end) +
+        (case when innovate = 'Y' then 1 else 0 end) +
+        (case when return = 'Y' then 1 else 0 end)
+    ) as tasks_completed
+    FROM results
+    ORDER BY tasks_completed DESC, name ASC
+    """)
+    results = cur.fetchall()
+    con.close()
+    
+    # Output Result
+    fileName = 'allInterns_%s.csv' % (datetime.date.today())
+    outfile = open(fileName, 'wb')
+    writer = csv.writer(outfile, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+    writer.writerow(("Name", "Campus", "# Completed"))
+    
+    for row in results:
+        writer.writerow(row)
+    
+    print ""
+    print "Full list of all interns and number of tasks completed is in allInterns.csv"
+    
+    '''
+    Updates since last time script was run
+    ============================================================
+    '''
+    # Query Database
+    con = sql.connect(_DB_FILE)
+    cur = con.cursor()
+    cur.execute("""
+    SELECT name, campus, updateCnt
+    FROM results
+    WHERE updateCnt > 0
+    ORDER BY updateCnt DESC, name ASC
+    """)
+    results = cur.fetchall()
+    con.close()
+    
+    # Output Result
+    fileName = 'changesOnly_%s.csv' % (datetime.date.today())
+    outfile = open(fileName, 'wb')
+    writer = csv.writer(outfile, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+    writer.writerow(("Name", "Campus", "# Completed"))
+    
+    for row in results:
+        writer.writerow(row)
+    
+    print ""
+    print "Added new submissions from last time script was run to newEntries.csv"
+    
+
+
+def initDatabase():
+    '''
+    Setup the SQLite database. Creates table for results if it doesn't already exist and clears updateCnt.
+    '''
+    con = sql.connect(_DB_FILE)
+    cur = con.cursor()
+    cur.execute("""CREATE TABLE IF NOT EXISTS `results` (
+                    `name` TEXT NOT NULL UNIQUE,
+                    `campus` TEXT,
+                    `impact` TEXT,
+                    `impact_total_hours` INT,
+                    `connect` TEXT,
+                    `connect_number_attended` INT,
+                    `connect_university` TEXT,
+                    `improve` TEXT,
+                    `internview` TEXT,
+                    `innovate` TEXT,
+                    `return` TEXT,
+                    `updateCnt` INT
+                );""")
+    cur.execute("UPDATE results SET updateCnt = 0;")
+    con.commit()
+    con.close()
+
+def csv2sql():
+    '''
+    Imports _CSV_FILE data into _DB_FILE with column relationship represented in _CSV_COLUMNS
+    '''
     try:
         infile = open('survey.csv', 'rb')
     except IOError:
@@ -24,207 +259,102 @@ def main():
     reader = csv.reader(infile)
     next(reader, None) # skip header
     
+    con = sql.connect(_DB_FILE)
+    cur = con.cursor()
+    
     for row in reader:
-        taskName = row[1]
-
-        for name in _TASK_NAMES:
-            if name in taskName:
-                completed = _TASK_NAMES[name][1](row)
+        # Progress indicator
+        pos = reader.line_num % 20
+        
+        print '\r[',
+        print ' '*(pos),
+        print '=',
+        print ' '*(19-pos),
+        print ']',
+        
+        # Try an insert
+        if (
+                (isSet(row[_CSV_COLUMNS['impact_min_hours']]) and isSet(row[_CSV_COLUMNS['impact_share_pic']]))
+                or isSet(row[_CSV_COLUMNS['connect_share_pic']])
+                or isSet(row[_CSV_COLUMNS['improve_did_survey']])
+                or isSet(row[_CSV_COLUMNS['internview_did_video']])
+                or (isSet(row[_CSV_COLUMNS['innovate_submit_idea']]) and isSet(row[_CSV_COLUMNS['innovate_meets_net_worth']]))
+                or (isSet(row[_CSV_COLUMNS['return_did_profile']]) and isSet(row[_CSV_COLUMNS['return_did_resume']]))
+            ):
+            cur.execute("INSERT OR IGNORE INTO results VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", (
+                row[_CSV_COLUMNS['name']],
+                row[_CSV_COLUMNS['campus']],
+                'Y' if isSet(row[_CSV_COLUMNS['impact_min_hours']]) and isSet(row[_CSV_COLUMNS['impact_share_pic']]) else 'N',
+                row[_CSV_COLUMNS['impact_total_hours']],
+                'Y' if isSet(row[_CSV_COLUMNS['connect_share_pic']]) else 'N',
+                row[_CSV_COLUMNS['connect_number_attended']],
+                row[_CSV_COLUMNS['connect_university']],
+                'Y' if isSet(row[_CSV_COLUMNS['improve_did_survey']]) else 'N',
+                'Y' if isSet(row[_CSV_COLUMNS['internview_did_video']]) else 'N',
+                'Y' if isSet(row[_CSV_COLUMNS['innovate_submit_idea']]) and isSet(row[_CSV_COLUMNS['innovate_meets_net_worth']]) else 'N',
+                'Y' if isSet(row[_CSV_COLUMNS['return_did_profile']]) and isSet(row[_CSV_COLUMNS['return_did_resume']]) else 'N',
+                1
+            ))
+            rowsAffected = cur.rowcount
+            con.commit()
+        
+        if rowsAffected == 0:
+            # Insert failed because record already exists, update it
+            
+            if _TASK_NAMES[0] in row[_CSV_COLUMNS['task_name']]:
+                # Impact
+                if isSet(row[_CSV_COLUMNS['impact_min_hours']]) and isSet(row[_CSV_COLUMNS['impact_share_pic']]):
+                    cur.execute('UPDATE results SET impact = \'Y\', impact_total_hours = ?, updateCnt = updateCnt + 1 WHERE name = ? and impact = \'N\'', (
+                        row[_CSV_COLUMNS['impact_total_hours']],
+                        row[_CSV_COLUMNS['name']]
+                    ))
                 
-                if completed:
-                    tallyTasks(name)
-                    internInfo(row[0], _TASK_NAMES[name][0], row[7])
-        
-        campusTally(row)
-    infile.close()
-    
-    print "\n===================================="
-    
-    '''
-    Print out results
-    '''
-    
-    # Intern info
-    header = ["Name", "Campus", "Tasks Completed"]
-    x = PrettyTable(header)
-    x.sortby = "Tasks Completed"
-    x.reversesort = True
-    x.padding_width = 1
-    x.align = "l"
-    
-    outfile = open('output.csv', 'wb')
-    writer = csv.writer(outfile, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
-    writer.writerow(header)
-    
-    for name in _internInfo:
-        row = [name, _internInfo[name][2], _internInfo[name][1]]
-        
-        # Write full table to CSV
-        writer.writerow(row)
-        
-        # Only print interns that have completed all tasks
-        if _internInfo[name][1] == len(_TASK_NAMES):
-            x.add_row(row)
-    
-    outfile.close()
-    
-    print ""
-    print "Interns that have completed all tasks.\nFull list of all interns and number of tasks completed is in output.csv"
-    print x
-    
-    # Task Completion by Campus
-    x = PrettyTable(["Campus", "# Submissions"])
-    x.sortby = "# Submissions"
-    x.reversesort = True
-    x.padding_width = 1
-    x.align = "l"
-    
-    for campus in _campuses:
-        x.add_row([campus, _campuses[campus]])
-    
-    print ""
-    print "Number of submissions by campus"
-    print x
-    
-    # Task Completion Stats
-    x = PrettyTable(["Task", "# Submissions"])
-    x.sortby = "# Submissions"
-    x.reversesort = True
-    x.padding_width = 1
-    x.align = "l"
-    
-    for task in _tasksCompletedByTask:
-        x.add_row([task, _tasksCompletedByTask[task]])
-    
-    print ""
-    print "Number of successfully completed submissions by task. (Includes duplicates)"
-    print x
-    
-    # Volunteer stats
-    print "Total expected hours volunteered: {0} ".format(_hoursVolunteered)
-    print "Total alumni luncheon attendance: {0} ".format(_peopleLunchedWith)
-    
-    exitFunc()
+            elif _TASK_NAMES[1] in row[_CSV_COLUMNS['task_name']]:
+                # Connect
+                if isSet(row[_CSV_COLUMNS['connect_share_pic']]):
+                    cur.execute('UPDATE results SET connect = \'Y\', connect_number_attended = ?, connect_university = ?, updateCnt = updateCnt + 1 WHERE name = ? and connect = \'N\'', (
+                        row[_CSV_COLUMNS['connect_number_attended']],
+                        row[_CSV_COLUMNS['connect_university']],
+                        row[_CSV_COLUMNS['name']]
+                    ))
+                
+            elif _TASK_NAMES[2] in row[_CSV_COLUMNS['task_name']]:
+                # Improve
+                if isSet(row[_CSV_COLUMNS['improve_did_survey']]):
+                    cur.execute('UPDATE results SET improve = \'Y\', updateCnt = updateCnt + 1 WHERE name = ? and improve = \'N\'', (
+                        row[_CSV_COLUMNS['name']],
+                    ))
+                
+            elif _TASK_NAMES[3] in row[_CSV_COLUMNS['task_name']]:
+                # InternView
+                if isSet(row[_CSV_COLUMNS['internview_did_video']]):
+                    cur.execute('UPDATE results SET internview = \'Y\', updateCnt = updateCnt + 1 WHERE name = ? and internview = \'N\'', (
+                        row[_CSV_COLUMNS['name']],
+                    ))
+                
+            elif _TASK_NAMES[4] in row[_CSV_COLUMNS['task_name']]:
+                # Innovate
+                if isSet(row[_CSV_COLUMNS['innovate_submit_idea']]) and isSet(row[_CSV_COLUMNS['innovate_meets_net_worth']]):
+                    cur.execute('UPDATE results SET innovate = \'Y\', updateCnt = updateCnt + 1 WHERE name = ? and innovate = \'N\'', (
+                        row[_CSV_COLUMNS['name']],
+                    ))
+                
+            elif _TASK_NAMES[5] in row[_CSV_COLUMNS['task_name']]:
+                # Return
+                if isSet(row[_CSV_COLUMNS['return_did_profile']]) and isSet(row[_CSV_COLUMNS['return_did_resume']]):
+                    cur.execute('UPDATE results SET return = \'Y\', updateCnt = updateCnt + 1 WHERE name = ? and return = \'N\'', (
+                        row[_CSV_COLUMNS['name']],
+                    ))
+                
+            con.commit()
 
+    con.close()
 
-_internInfo = {}
-def internInfo(name, bit, campus):
-    '''
-    Updates dictionary containing the following items:
-        Key: Name
-        Value:
-        [
-            Binary representation of tasks completed,
-            Number of tasks completed,
-            Campus
-        ]
-    
-    param name: name of intern
-    param bit: the bit that represents the task. See _TASK_NAMES for the bit values
-    param campus: Name of campus this person works at
-    '''
-    if _internInfo.get(name) is None:
-        _internInfo[name] = [0, 0, campus]
-    
-
-    _internInfo[name][0] = _internInfo[name][0] | 1 << bit
-    _internInfo[name][1] = "{0:b}".format(_internInfo[name][0]).count("1")
-
-
-_tasksCompletedByTask = {}
-def tallyTasks(taskName):
-    '''
-    Keep track of how many submissions for each task
-    
-    param taskName: Name of task whose count should be incremented
-    '''
-    
-    _tasksCompletedByTask[taskName] = _tasksCompletedByTask.get(taskName, 0) + 1
-
-_campuses = {}
-def campusTally(row):
-    '''
-    Tallies the number of responses from each campus and stores it into a dictionary
-    
-    param row: CSV row to read data from
-    '''
-    
-    _campuses[row[7]] = _campuses.get(row[7], 0) + 1
-
-
-_hoursVolunteered = 0
-def powerOfOne(row):
-    '''
-    Tallies total hours volunteered by interns
-    
-    param row: CSV row to read data from
-    return: True if person completed this task. False otherwise
-    '''
-    
-    global _hoursVolunteered
-    _hoursVolunteered = _hoursVolunteered + int(row[3])
-    print "Intern: ", row[0], "\tTask: Volunteering", row[3], "hours"
-    
-    return row[2] == 'Yes'
-
-_peopleLunchedWith = 0
-def oneToMany(row):
-    '''
-    Tallies total number of people who attended alumni lunches
-    
-    param row: CSV row to read data from
-    return: True
-    '''
-    global _peopleLunchedWith
-    _peopleLunchedWith = _peopleLunchedWith + int(row[13])
-    print "Intern: ", row[0], "\tTask: Lunch with", row[13], "people"
-    
-    return True
-
-def oneDataPoint(row):
-    '''
-    Checks if person completed this task
-    
-    param row: CSV row to read data from
-    return: True if person completed this task. False otherwise
-    '''
-    print "Intern: ", row[0], "\tTask: Survey"
-    return row[6] == 'TRUE'
-
-def oneVoice(row):
-    '''
-    Checks if person completed this task
-    
-    param row: CSV row to read data from
-    return: True if person completed this task. False otherwise
-    '''
-    print "Intern: ", row[0], "\tTask: Video"
-    
-    return row[11] == 'Yes'
-
-def oneIdea(row):
-    '''
-    Checks if person completed this task
-    
-    param row: CSV row to read data from
-    return: True if person completed this task. False otherwise
-    '''
-    print "Intern: ", row[0], "\tTask: Spigit"
-    return row[10] == 'TRUE' and row[14] == 'TRUE'
-
-def oneToReturn(row):
-    '''
-    Checks if person completed this task
-    
-    param row: CSV row to read data from
-    return: True if person completed this task. False otherwise
-    '''
-    print "Intern: ", row[0], "\tTask: External Profile"
-    return row[4] == 'Yes'
+def isSet(val):
+    return val in ['Yes', '1', 'TRUE']
 
 def exitFunc():
     print "\nPress enter to close"
     raw_input()
 
-config()
 main()
