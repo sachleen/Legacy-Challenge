@@ -5,7 +5,7 @@ import datetime
 import sys
 
 '''
-Configuration
+Configuration 
 '''
 
 # Readable names for CSV column numbers
