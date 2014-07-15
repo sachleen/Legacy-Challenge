@@ -16,11 +16,9 @@ _CSV_COLUMNS = {
     
     # Impact
     'impact_min_hours': 2,      # required
-    'impact_share_pic': 18,     # required
     'impact_total_hours': 3,    # stats only
     
     #Connect
-    'connect_share_pic': 17,        # required
     'connect_number_attended': 13,  # stats only
     'connect_university': 8,        # stats only
     
@@ -160,7 +158,7 @@ def main():
     con.close()
     
     # Output Result
-    print "{0} interns had lunch with {1} people form their universities".format(*results)
+    print "{0} interns had lunch with {1} people from their universities".format(*results)
     
         
     '''
@@ -196,7 +194,7 @@ def main():
         writer.writerow(row)
     
     print ""
-    print "Full list of all interns and number of tasks completed is in allInterns.csv"
+    print "Full list of all interns and number of tasks completed is in", fileName
     
     '''
     Updates since last time script was run
@@ -224,7 +222,7 @@ def main():
         writer.writerow(row)
     
     print ""
-    print "Added new submissions from last time script was run to newEntries.csv"
+    print "Added new submissions from last time script was run to", fileName
     
 
 
@@ -280,8 +278,8 @@ def csv2sql():
         
         # Try an insert
         if (
-                (isSet(row[_CSV_COLUMNS['impact_min_hours']]) and isSet(row[_CSV_COLUMNS['impact_share_pic']]))
-                or isSet(row[_CSV_COLUMNS['connect_share_pic']])
+                (isSet(row[_CSV_COLUMNS['impact_min_hours']]))
+                or (row[_CSV_COLUMNS['connect_university']])
                 or isSet(row[_CSV_COLUMNS['improve_did_survey']])
                 or isSet(row[_CSV_COLUMNS['internview_did_video']])
                 or (isSet(row[_CSV_COLUMNS['innovate_submit_idea']]) and isSet(row[_CSV_COLUMNS['innovate_meets_net_worth']]))
@@ -290,9 +288,9 @@ def csv2sql():
             cur.execute("INSERT OR IGNORE INTO results VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", (
                 row[_CSV_COLUMNS['name']],
                 row[_CSV_COLUMNS['campus']],
-                'Y' if isSet(row[_CSV_COLUMNS['impact_min_hours']]) and isSet(row[_CSV_COLUMNS['impact_share_pic']]) else 'N',
+                'Y' if isSet(row[_CSV_COLUMNS['impact_min_hours']]) else 'N',
                 row[_CSV_COLUMNS['impact_total_hours']],
-                'Y' if isSet(row[_CSV_COLUMNS['connect_share_pic']]) else 'N',
+                'Y' if (row[_CSV_COLUMNS['connect_university']]) else 'N',
                 row[_CSV_COLUMNS['connect_number_attended']],
                 row[_CSV_COLUMNS['connect_university']],
                 'Y' if isSet(row[_CSV_COLUMNS['improve_did_survey']]) else 'N',
@@ -309,7 +307,7 @@ def csv2sql():
             
             if _TASK_NAMES[0] in row[_CSV_COLUMNS['task_name']]:
                 # Impact
-                if isSet(row[_CSV_COLUMNS['impact_min_hours']]) and isSet(row[_CSV_COLUMNS['impact_share_pic']]):
+                if isSet(row[_CSV_COLUMNS['impact_min_hours']]):
                     cur.execute('UPDATE results SET impact = \'Y\', impact_total_hours = ?, updateCnt = updateCnt + 1 WHERE name = ? and impact = \'N\'', (
                         row[_CSV_COLUMNS['impact_total_hours']],
                         row[_CSV_COLUMNS['name']]
@@ -317,7 +315,7 @@ def csv2sql():
                 
             elif _TASK_NAMES[1] in row[_CSV_COLUMNS['task_name']]:
                 # Connect
-                if isSet(row[_CSV_COLUMNS['connect_share_pic']]):
+                if (row[_CSV_COLUMNS['connect_university']]):
                     cur.execute('UPDATE results SET connect = \'Y\', connect_number_attended = ?, connect_university = ?, updateCnt = updateCnt + 1 WHERE name = ? and connect = \'N\'', (
                         row[_CSV_COLUMNS['connect_number_attended']],
                         row[_CSV_COLUMNS['connect_university']],
