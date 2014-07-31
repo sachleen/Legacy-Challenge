@@ -25,7 +25,7 @@ _CSV_COLUMNS = {
     #Improve
     'improve_did_survey': 6,    # required
     
-    #InternView
+    #InternView/Professional Profile
     'internview_did_video': 11, # required
     
     #Innovate
@@ -329,8 +329,8 @@ def csv2sql():
                         row[_CSV_COLUMNS['name']],
                     ))
                 
-            elif _TASK_NAMES[3] in row[_CSV_COLUMNS['task_name']]:
-                # InternView
+            elif _TASK_NAMES[3] in row[_CSV_COLUMNS['task_name']] or 'Professional' in row[_CSV_COLUMNS['task_name']]:
+                # InternView / Professional Profile
                 if isSet(row[_CSV_COLUMNS['internview_did_video']]):
                     cur.execute('UPDATE results SET internview = \'Y\', updateCnt = updateCnt + 1 WHERE name = ? and internview = \'N\'', (
                         row[_CSV_COLUMNS['name']],
